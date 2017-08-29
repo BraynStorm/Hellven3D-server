@@ -1,9 +1,11 @@
 package braynstorm.hellven3d.server
 
 import POJO
+import com.mchange.v1.io.InputStreamUtils
 import com.mchange.v2.c3p0.ComboPooledDataSource
 
-object DB {
+object DB : WithLoggin {
+	override val logger by lazyLogger()
 
 	private val connectionPool = ComboPooledDataSource(true).also {
 		it.dataSourceName = "HellvenMainDB"
@@ -21,7 +23,26 @@ object DB {
 
 	}
 
-	private inline fun toHostname(ip: String, port: Int) = "$ip:$port"
+	private val statements = hashMapOf<String, String>().also {
+		// Regex removes all comments and strips the empty lines.
+		val regex = """(?:--.*?\n)|(?:\n\n)|(?:^\n$)""".toRegex(setOf(RegexOption.MULTILINE))
+
+		InputStreamUtils.getContentsAsString(javaClass.classLoader.getResourceAsStream("sql")).split('\n').forEach {
+			val path = "sql/" + it
+			var sql = javaClass.classLoader.getResource(path).readText(Charsets.UTF_8)
+			sql = regex.replace(sql, "")
+
+			it.removeSuffix(".sql").toLowerCase()
+
+
+		}
+	}
+
+	private inline fun toConnectionString(ip: String, port: Int) = "$ip:$port"
+	private inline fun toIpAndPort(connectionString: String): Pair<String, Int> {
+		val split = connectionString.split(':')
+		return split[0] to split[1].toInt()
+	}
 
 
 	/**
@@ -73,6 +94,7 @@ object DB {
 
 	fun getWorldList(): List<POJO.WorldInfo> {
 		connectionPool.connection.use {
+			// TODO Use "src/main/resources/sql/GetWorldList.sql" instead
 			val statement = it.prepareStatement("""SELECT
   worlds.id,
   worlds.name,
@@ -251,7 +273,6 @@ GROUP BY worlds.id, world_servers.connection_string, world_servers.clients_max, 
 
 
 }
-
 
 
 
