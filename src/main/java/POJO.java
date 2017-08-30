@@ -8,70 +8,51 @@ public class POJO {
 	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
 	public static class LoginServerInfo extends POJO {
 		public long millis;
-	}
-	
-	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
-	public static class RequestWorldList extends POJO {
-	}
-	
-	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
-	public static class WorldServerStatusRequest extends POJO {
-		/**
-		 * May be equal to "*"
-		 */
-		public String world;
-	}
-	
-	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
-	public static class WorldServerStatusResponse extends POJO {
-		public int capacity;
-		public int loggedIn;
-		public int inGame;
+		
+		@Override
+		public String toString() {
+			return getClass().getSimpleName() + "{millis=" + millis + ')';
+		}
 	}
 	
 	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
 	public static class AuthStart extends POJO {
+		
 		public String email;
 		public String password;
+		
+		@Override
+		public String toString() {
+			return getClass().getSimpleName() +
+					"{email=" + email +
+					", password(==null)=" + (password == null) +
+					"}";
+		}
+		
 	}
-	
 	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
 	public static class AuthFinished extends POJO {
+		
 		public static final int SUCCESS = 0;
 		public static final int NO_ACCOUNT = 1;
 		public static final int ACCOUNT_ALREADY_LOGGED_IN = 2;
-		
 		public int status;
+		
+		@Override
+		public String toString() {
+			return getClass().getSimpleName() + "{status=" + status + "}";
+		}
 	}
 	
-	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
-	public static class Token extends POJO {
-		public long token;
-	}
 	
 	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
-	public static class RequestCharacterPrototypeList extends POJO {
-		public String world;
+	public static class RequestWorldList extends POJO {
+		@Override
+		public String toString() {
+			return getClass().getSimpleName() + "{}";
+		}
 	}
 	
-	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
-	public static class CharacterPrototypeList extends POJO {
-		public List<CharacterPrototype> characters;
-	}
-	
-	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
-	public static class CharacterPrototype extends POJO {
-		public String name;
-		public int race;
-		public List<EquippedItem> equipment;
-	}
-	
-	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
-	public static class EquippedItem extends POJO {
-		public int id;
-		// TODO more shit to add.
-		// HashMap<String, Integer> data;
-	}
 	
 	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
 	public static class WorldList extends POJO {
@@ -85,6 +66,62 @@ public class POJO {
 			public int currentPlayers;
 			public int numCharacters;
 		}
+	}
+	
+	
+	/**
+	 * "I Choose U"
+	 */
+	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
+	public static class RequestCharacterPrototypeList extends POJO {
+		public String world;
+		
+		@Override
+		public String toString() {
+			return getClass().getSimpleName() + "{world=" + world + "}";
+		}
+		
+	}
+	
+	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
+	public static class CharacterPrototypeList extends POJO {
+		public List<CharacterPrototype> characters;
+		
+		@Override
+		public String toString() {
+			return "CharacterPrototypeList{" +
+					"characters(size)=" + characters.size() +
+					'}';
+		}
+	}
+	
+	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
+	public static class CharacterPrototype extends POJO {
+		public String name;
+		public int race;
+		public List<EquippedItem> equipment;
+		
+		
+	}
+	
+	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
+	public static class EquippedItem extends POJO {
+		public int id;
+		// TODO more shit to add.
+		// HashMap<String, Integer> data;
+	}
+	
+	
+	
+	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
+	public static class Token extends POJO {
+		public long token;
+		
+		@Override
+		public String toString() {
+			return getClass().getSimpleName() + "{token=" + token + "}";
+		}
+		
 	}
 	
 }

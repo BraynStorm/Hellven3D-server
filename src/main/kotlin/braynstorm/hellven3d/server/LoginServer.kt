@@ -1,5 +1,8 @@
+@file:Suppress("NOTHING_TO_INLINE")
+
 package braynstorm.hellven3d.server
 
+import InternalPOJO
 import POJO
 import braynstorm.hellven3d.server.net.JsonPOJODecoder
 import braynstorm.hellven3d.server.net.JsonPOJOEncoder
@@ -13,15 +16,14 @@ import java.sql.SQLException
 import java.util.*
 
 class LoginServer(private val clientPort: Int, private val worldServerPort: Int) {
+	private val logger by lazyLogger()
 
 	private val clientListenerAcceptGroup = NioEventLoopGroup()
 	private val clientListenerConnectionGroup = NioEventLoopGroup()
 
-	/**
-	 * Used to listen for world servers.
-	 */
-	private val internalListenerAcceptGroup = NioEventLoopGroup()
-	private val internalListenerConnectionGroup = NioEventLoopGroup()
+
+	private val worldListenerAcceptGroup = NioEventLoopGroup()
+	private val worldListenerConnectionGroup = NioEventLoopGroup()
 
 	private val clientServer = ServerBootstrap().also {
 		it.group(clientListenerAcceptGroup, clientListenerConnectionGroup)
@@ -29,51 +31,69 @@ class LoginServer(private val clientPort: Int, private val worldServerPort: Int)
 		it.childHandler(object : ChannelInitializer<NioSocketChannel>() {
 			override fun initChannel(ch: NioSocketChannel) {
 				ch.pipeline().addLast(JsonObjectDecoder())
-				ch.pipeline().addLast(JsonPOJODecoder())
-				ch.pipeline().addLast(JsonPOJOEncoder())
+				ch.pipeline().addLast(JsonPOJODecoder(POJO::class.java))
+				ch.pipeline().addLast(JsonPOJOEncoder(POJO::class.java))
 				ch.pipeline().addLast(LoginServerConnectionHandler(this@LoginServer))
 			}
 
 		})
 	}
 
-//	private val worldServer = ServerBootstrap().also {
-//		it.group(internalListenerAcceptGroup, internalListenerConnectionGroup)
-//		it.channel(NioServerSocketChannel::class.java)
-//		it.childHandler(object : ChannelInitializer<NioSocketChannel>() {
-//			//
-//			override fun initChannel(ch: NioSocketChannel) {
-//				ch.pipeline().addLast(JsonObjectDecoder())
-//				ch.pipeline().addLast(JsonPOJOCodec())
-//				ch.pipeline().addLast(WorldServerConnectionHandler(this@LoginServer))
-//			}
-//
-//		})
-//	}
+	private val worldListener = ServerBootstrap().also {
+		it.group(worldListenerAcceptGroup, worldListenerConnectionGroup)
+		it.channel(NioServerSocketChannel::class.java)
+		it.childHandler(object : ChannelInitializer<NioSocketChannel>() {
+			//
+			override fun initChannel(ch: NioSocketChannel) {
+				ch.pipeline().addLast(JsonObjectDecoder())
+				ch.pipeline().addLast(JsonPOJODecoder(InternalPOJO::class.java))
+				ch.pipeline().addLast(JsonPOJOEncoder(InternalPOJO::class.java))
+				ch.pipeline().addLast(WorldServerConnectionHandler(this@LoginServer))
+			}
+
+		})
+	}
 
 	private lateinit var loginServerFuture: ChannelFuture
-	private lateinit var worldServerServerFuture: ChannelFuture
+	private lateinit var worldListenerFuture: ChannelFuture
 
 	internal val connections = Collections.synchronizedMap(hashMapOf<Channel, Account>())
 
 	fun start() {
 		loginServerFuture = clientServer.bind(clientPort).addListener {
-			if (!it.isSuccess)
-				throw it.cause()
-			else {
+			if (!it.isSuccess) {
+				if (it.cause() != null) {
+					logger.warn("LoginServer didn't close with success.", it.cause())
+				} else {
+					logger.warn("LoginServer didn't close with success.")
+				}
+			} else {
+				logger.info("LoginServer closed normally")
+			}
+		}
 
+		worldListenerFuture = worldListener.bind(worldServerPort).addListener {
+			if (!it.isSuccess) {
+				if (it.cause() != null) {
+					logger.warn("WorldListener didn't close with success.", it.cause())
+				} else {
+					logger.warn("WorldListener didn't close with success.")
+				}
+			} else {
+				logger.info("WorldListener closed normally")
 			}
 		}
 	}
 
 	fun stop() {
 		loginServerFuture.cancel(true)
+		worldListenerFuture.cancel(true)
 	}
 }
 
-class WorldServerConnectionHandler(private val loginServer: LoginServer) : CombinedChannelDuplexHandler<SimpleChannelInboundHandler<Any>, ChannelOutboundHandlerAdapter>() {
-	override fun read(ctx: ChannelHandlerContext?) {
-		super.read(ctx)
+class WorldServerConnectionHandler(private val loginServer: LoginServer) : SimpleChannelInboundHandler<InternalPOJO>() {
+	override fun channelRead0(ctx: ChannelHandlerContext, msg: InternalPOJO) {
+
 	}
 }
 
@@ -87,7 +107,7 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 	}
 
 	override fun channelRead0(ctx: ChannelHandlerContext, packet: POJO) {
-		println("Read packet $packet")
+		logger.info("Read packet $packet")
 
 		when (packet) {
 			is POJO.AuthStart -> {
