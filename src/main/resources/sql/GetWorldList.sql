@@ -5,7 +5,6 @@
 -- 3. Foe each world, how many characters does this account have
 
 SELECT
-	worlds.id                  AS world_id,
 	worlds.name                AS world_name,
 	world_servers.clients_current,
 	world_servers.clients_max,
@@ -14,8 +13,7 @@ SELECT
 FROM worlds
 	LEFT OUTER JOIN characters ON (characters.world_id = worlds.id AND account_id = ?)
 	LEFT OUTER JOIN world_servers ON worlds.id = world_servers.world_id
-GROUP BY worlds.id,
-	worlds.name,
+GROUP BY worlds.name,
 	world_servers.clients_current,
 	world_servers.clients_max,
 	world_servers.connection_string;

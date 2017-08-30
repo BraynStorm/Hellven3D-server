@@ -121,3 +121,12 @@ ALTER TABLE world_servers
 FOREIGN KEY (connection_string) REFERENCES possible_world_servers
 ON UPDATE CASCADE ON DELETE CASCADE;
 
+CREATE TABLE log_loginserver
+(
+	message TEXT,
+	time    BIGINT DEFAULT date_part('epoch' :: TEXT, now()) NOT NULL,
+	id      SERIAL                                           NOT NULL
+		CONSTRAINT log_loginserver_pkey
+		PRIMARY KEY
+);
+

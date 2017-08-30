@@ -63,8 +63,8 @@ compileKotlin {
 compileTestKotlin {
     kotlinOptions.jvmTarget = "1.8"
 }
-//
-//task runLoginServer(type:JavaExec){
-//	classpath sourceSets.main.runtimeClasspath
-//	main = "braynstorm.hellven3d.server.launcher.LoginServerLauncherKt"
-//}
+
+task runLoginServer(type:JavaExec){
+	classpath sourceSets.main.runtimeClasspath
+	main = "braynstorm.hellven3d.server.launcher.LoginServerLauncherKt"
+}

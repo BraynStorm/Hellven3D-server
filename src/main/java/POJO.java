@@ -2,6 +2,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 import java.util.List;
 
+@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
 public class POJO {
 	
 	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
@@ -73,12 +74,17 @@ public class POJO {
 	}
 	
 	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
-	public static class WorldInfo extends POJO {
-		public String name;
-		public String connectionString;
-		public int capacity;
-		public int currentPlayers;
-		public int numCharacters;
+	public static class WorldList extends POJO {
+		public List<WorldInfo> worlds;
+		
+		@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
+		public static class WorldInfo extends POJO {
+			public String name;
+			public String connectionString;
+			public int capacity;
+			public int currentPlayers;
+			public int numCharacters;
+		}
 	}
 	
 }

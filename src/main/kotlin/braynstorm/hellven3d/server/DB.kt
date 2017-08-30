@@ -3,8 +3,12 @@ package braynstorm.hellven3d.server
 import POJO
 import com.mchange.v1.io.InputStreamUtils
 import com.mchange.v2.c3p0.ComboPooledDataSource
+import java.sql.Connection
+import java.sql.PreparedStatement
+import java.sql.ResultSet
 
-object DB : WithLoggin {
+@Suppress("NOTHING_TO_INLINE")
+object DB : WithLogging {
 	override val logger by lazyLogger()
 
 	private val connectionPool = ComboPooledDataSource(true).also {
@@ -21,20 +25,23 @@ object DB : WithLoggin {
 		// Enable statement pooling.
 		it.maxStatementsPerConnection = 10
 
+
 	}
 
-	private val statements = hashMapOf<String, String>().also {
+	private val statements = hashMapOf<String, String>().also { map ->
 		// Regex removes all comments and strips the empty lines.
 		val regex = """(?:--.*?\n)|(?:\n\n)|(?:^\n$)""".toRegex(setOf(RegexOption.MULTILINE))
-
 		InputStreamUtils.getContentsAsString(javaClass.classLoader.getResourceAsStream("sql")).split('\n').forEach {
 			val path = "sql/" + it
 			var sql = javaClass.classLoader.getResource(path).readText(Charsets.UTF_8)
 			sql = regex.replace(sql, "")
 
-			it.removeSuffix(".sql").toLowerCase()
-
-
+			// Names will be (ex) GetWorldList
+			if (sql.isNotBlank()) {
+				val key = it.removeSuffix(".sql")
+				map += key to sql
+				logger.info("Loaded sql file $key")
+			}
 		}
 	}
 
@@ -44,25 +51,27 @@ object DB : WithLoggin {
 		return split[0] to split[1].toInt()
 	}
 
+	private inline fun prepareStatement(connnection: Connection, statement: String): PreparedStatement {
+		return connnection.prepareStatement(statement, ResultSet.TYPE_SCROLL_SENSITIVE, ResultSet.CONCUR_UPDATABLE)
+	}
 
 	/**
 	 * Returns the account if any
 	 */
 	fun tryGetAccount(email: String, password: String): Pair<Account?, Boolean> {
 		connectionPool.connection.use {
-			val stmt = it.prepareStatement("SELECT id, logged_in FROM accounts WHERE email=? AND password = crypt(?, password)")
+			val stmt = it.prepareStatement(statements["GetAccountID"])
 			stmt.setString(1, email)
 			stmt.setString(2, password)
 
 			stmt.executeQuery().use {
-				return if (it.first()) {
+				return if (!it.next()) {
+					(null to false)
+				} else {
 					val id = it.getInt(1)
 					val isAlreadyLoggedIn = it.getBoolean(2)
 
 					Account(id) to isAlreadyLoggedIn
-
-				} else {
-					(null to false)
 				}
 			}
 		}
@@ -80,7 +89,7 @@ object DB : WithLoggin {
 				}
 
 				if (list.isEmpty()) {
-					// TODO Log [DEBUG] Database has no items.
+					// TODO Log [WARN] Database has no items.
 
 					println("[Database] table `items` is empty.  :/")
 				} else {
@@ -92,47 +101,40 @@ object DB : WithLoggin {
 		}
 	}
 
-	fun getWorldList(): List<POJO.WorldInfo> {
+	fun getWorldListAndCharacterCount(accountID: Int): POJO.WorldList {
 		connectionPool.connection.use {
-			// TODO Use "src/main/resources/sql/GetWorldList.sql" instead
-			val statement = it.prepareStatement("""SELECT
-  worlds.id,
-  worlds.name,
-  world_servers.connection_string,
-  world_servers.clients_max,
-  world_servers.clients_current,
-  count(characters.id) AS characters
-FROM characters
-  RIGHT OUTER JOIN worlds ON characters.world_id = worlds.id
-  LEFT OUTER JOIN world_servers ON worlds.id = world_servers.world_id
-GROUP BY worlds.id, world_servers.connection_string, world_servers.clients_max, world_servers.clients_current""")
-			statement.use {
-				it.executeQuery().use {
-					TODO()
+			it.prepareStatement(statements["GetWorldList"]).use { statement ->
+				statement.setInt(1, accountID)
+				statement.executeQuery().use { resultSet ->
+					val worldList = POJO.WorldList().also { it.worlds = mutableListOf<POJO.WorldList.WorldInfo>() }
 
+					resultSet.forEach { row ->
+						worldList.worlds.add(POJO.WorldList.WorldInfo().also {
+							it.name = row.getString(1)
+							it.currentPlayers = row.getInt(2)
+							it.capacity = row.getInt(3)
+							it.numCharacters = row.getInt(4)
+							it.connectionString = row.getString(5)
+						})
+					}
+
+					return worldList
 				}
 			}
 
 		}
+
 	}
 
-	/**
-	 * TODO A lot of things left to think about; Read below.
-	 * The JBDC doesnt allow for multithreaded prepared statements.
-	 * java.sql.DataSource is a "connection pool" that should be used by the login server because of multithreaded access (async socekts).
-	 *
-	 * Which means the world server will be as planned - keeps all the necessary stuff for the game in memory.
-	 * And every so often (probably gradually) the worldserver saves the progress of each player and "thing" in the game.
-	 * Which also means the WorldServer CAN maintain a constant connection to the DB as long as it uses it in a
-	 * one-thread-at-a-time fasion.
-	 *
-	 * By proxy of this "connection pool", the LoginServer will be unable to use prepared statements and will have to
-	 * use the "older", normal statements. (SQL Injection prone ones...)
-	 *
-	 * Bojidar Borislavov Stoyanov (bojidar.b.stoyanov@gmail.com)
-	 *
-	 * 24.08.2017
-	 */
+	fun setAccountLoggedIn(accountID: Int, value: Boolean) {
+		connectionPool.connection.use {
+			val stmt = it.prepareStatement(statements["SetAccountLoggedIn"])
+			stmt.setBoolean(1, value)
+			stmt.setInt(2, accountID)
+
+			stmt.executeUpdate()
+		}
+	}
 
 	//	private object Statements {
 //		// TODO Move the ones required by the LoginServer in a separate class
@@ -209,7 +211,7 @@ GROUP BY worlds.id, world_servers.connection_string, world_servers.clients_max, 
 //		Statements.REQUEST_SERVER_STATUS.setString(1, worldName)
 //		val resultSet = Statements.REQUEST_SERVER_STATUS.executeQuery()
 //
-//		if (!resultSet.first()) {
+//		if (!resultSet.next()) {
 //			throw UnknownWorld(worldName)
 //		}
 //
@@ -260,7 +262,7 @@ GROUP BY worlds.id, world_servers.connection_string, world_servers.clients_max, 
 //		val resultSet = Statements.CREDENTIALS_CHECK.executeQuery()
 //
 //		// If we have a matching row, we found an account.
-//		if (resultSet.first()) {
+//		if (resultSet.next()) {
 //			val accID = resultSet.getInt(1)
 //
 //			return Account(accID)

@@ -17,7 +17,6 @@ class JsonPOJOEncoder : MessageToMessageEncoder<POJO>() {
 		val bytes = objectMapper.writeValueAsBytes(msg)
 		val byteBuf = ctx.alloc().buffer(bytes.size).writeBytes(bytes)
 		out += byteBuf
-		println("ENCODE")
 	}
 }
 
@@ -28,10 +27,15 @@ class JsonPOJODecoder : MessageToMessageDecoder<ByteBuf>() {
 
 	override fun decode(ctx: ChannelHandlerContext, msg: ByteBuf, out: MutableList<Any>) {
 		// By specification, Charsets.UTF_8 is the charset
-		val bytes = objectMapper.writeValueAsBytes(msg)
-		val byteBuf = ctx.alloc().buffer(bytes.size).writeBytes(bytes)
-		out += byteBuf
-		println("ENCODE")
+		val jsonString = msg.toString(Charsets.UTF_8)
+		try {
+			val pojo = objectMapper.readValue<POJO>(jsonString, POJO::class.java)
+			out += pojo
+		} catch (e: Exception) {
+			e.printStackTrace()
+			//TODO LOG KILL PUNISH
+		}
+
 	}
 
 
