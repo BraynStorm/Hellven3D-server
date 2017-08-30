@@ -172,4 +172,4 @@ ENV/
 /.gradle
 /out
 /build
-
+*.run
