@@ -149,10 +149,12 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 					logger.info("Account ${account.id} is already logged in")
 					sendAuthResult(ctx, POJO.AuthFinished.ACCOUNT_ALREADY_LOGGED_IN)
 
-					if (loginServer.connections.containsValue(account))
+					if (loginServer.connections.containsValue(account)) {
+						//TODO
+					}
 
 					// FIXME this line should be removed when the WorldServer is implementd. They will handle this.
-						DB.setAccountLoggedIn(account.id, false)
+					DB.setAccountLoggedIn(account.id, false)
 					loginServer.connections.remove(ctx.channel())
 					// TODO notify world servers
 					return
