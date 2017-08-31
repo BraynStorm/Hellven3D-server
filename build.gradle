@@ -1,13 +1,6 @@
 group 'braynstorm'
 
-
-
-vMajor = 0
-vMiddle = 0
-vMinor = 0
-vBuild = 1
-
-version vMajor + '.' + vMiddle + '.' + vMinor + '.' + vBuild
+version = '0.0.0.0020'
 
 buildscript {
 	ext.kotlin_version = '1.1.4-2'
@@ -71,10 +64,10 @@ compileKotlin {
 compileTestKotlin {
 	kotlinOptions.jvmTarget = "1.8"
 }
-
-tasks vBuildTask {
-	// TODO make a task that runs build and if there were changes, increment the version
-}
+//
+//tasks vBuildTask {
+//	// TODO make a task that runs build and if there were changes, increment the version
+//}
 
 task runLoginServer(type: JavaExec) {
 	classpath sourceSets.main.runtimeClasspath

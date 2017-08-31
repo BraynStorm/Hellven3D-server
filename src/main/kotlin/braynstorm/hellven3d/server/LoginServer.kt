@@ -15,7 +15,7 @@ import io.netty.handler.codec.json.JsonObjectDecoder
 import java.sql.SQLException
 import java.util.*
 
-class LoginServer(private val clientPort: Int, private val worldServerPort: Int) {
+class LoginServer(private val loginServerPort: Int, private val worldServerPort: Int) {
 	private val logger by lazyLogger()
 
 	private val clientListenerAcceptGroup = NioEventLoopGroup()
@@ -60,27 +60,27 @@ class LoginServer(private val clientPort: Int, private val worldServerPort: Int)
 	internal val connections = Collections.synchronizedMap(hashMapOf<Channel, Account>())
 
 	fun start() {
-		loginServerFuture = clientServer.bind(clientPort).addListener {
+		loginServerFuture = clientServer.bind(loginServerPort).addListener {
 			if (!it.isSuccess) {
 				if (it.cause() != null) {
-					logger.warn("LoginServer didn't close with success.", it.cause())
+					logger.error("LoginServer can't be opened.", it.cause())
 				} else {
-					logger.warn("LoginServer didn't close with success.")
+					logger.error("LoginServer can't be opened on port $loginServerPort")
 				}
 			} else {
-				logger.info("LoginServer closed normally")
+				logger.info("LoginServer opened normally")
 			}
 		}
 
 		worldListenerFuture = worldListener.bind(worldServerPort).addListener {
 			if (!it.isSuccess) {
 				if (it.cause() != null) {
-					logger.warn("WorldListener didn't close with success.", it.cause())
+					logger.warn("WorldListener  can't be opened.", it.cause())
 				} else {
-					logger.warn("WorldListener didn't close with success.")
+					logger.warn("WorldListener can't be opened.")
 				}
 			} else {
-				logger.info("WorldListener closed normally")
+				logger.info("WorldListener opened normally on port $worldServerPort")
 			}
 		}
 	}
