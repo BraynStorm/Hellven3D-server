@@ -1,17 +1,19 @@
-package braynstorm.hellven3d.server.net
+package hellven3d.server.net
 
+import JsonPOJO
 import com.fasterxml.jackson.databind.ObjectMapper
+import hellven3d.server.lazyLogger
 import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.MessageToMessageDecoder
 import io.netty.handler.codec.MessageToMessageEncoder
 
-class JsonPOJOEncoder<T>(private val pojoClass: Class<T>) : MessageToMessageEncoder<T>() {
+class JsonPOJOEncoder : MessageToMessageEncoder<JsonPOJO>() {
 	companion object {
 		val objectMapper = ObjectMapper()
 	}
 
-	override fun encode(ctx: ChannelHandlerContext, msg: T, out: MutableList<Any>) {
+	override fun encode(ctx: ChannelHandlerContext, msg: JsonPOJO, out: MutableList<Any>) {
 		// By specification, Charsets.UTF_8 is the charset
 		val bytes = objectMapper.writeValueAsBytes(msg)
 		val byteBuf = ctx.alloc().buffer(bytes.size).writeBytes(bytes)
@@ -19,8 +21,9 @@ class JsonPOJOEncoder<T>(private val pojoClass: Class<T>) : MessageToMessageEnco
 	}
 }
 
-class JsonPOJODecoder<T>(private val pojoClass: Class<T>) : MessageToMessageDecoder<ByteBuf>() {
+class JsonPOJODecoder<T : JsonPOJO>(private val pojoClass: Class<T>) : MessageToMessageDecoder<ByteBuf>() {
 	companion object {
+		val logger by lazyLogger()
 		val objectMapper = ObjectMapper()
 	}
 
@@ -29,13 +32,20 @@ class JsonPOJODecoder<T>(private val pojoClass: Class<T>) : MessageToMessageDeco
 		val jsonString = msg.toString(Charsets.UTF_8)
 		try {
 			val pojo = objectMapper.readValue(jsonString, pojoClass)
-
-			if (pojo != null)
-				out.add(pojo)
+			if (pojo != null) {
+				if (pojo is JsonPOJO) {
+					out.add(pojo)
+				} else {
+					logger.warn("Received a non-pojo from client. Punish!")
+					ctx.close()
+					// TODO PUNISH
+				}
+			}
 
 		} catch (e: Exception) {
-			e.printStackTrace()
-			//TODO LOG KILL PUNISH
+			logger.warn("Exception when parsing json from client. ", e)
+			ctx.close()
+			//TODO PUNISH
 		}
 
 	}

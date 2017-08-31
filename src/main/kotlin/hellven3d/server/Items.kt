@@ -1,4 +1,4 @@
-package braynstorm.hellven3d.server
+package hellven3d.server
 
 
 /**
@@ -30,12 +30,17 @@ enum class EquipmentSlot(val value: Int) {
 
 class Item(val id: Int, val type: Short, val subtype: Short?) {
 	companion object {
+		private val logger by lazyLogger()
 		private val items = mutableListOf<Item>()
 
 		fun reloadItems() {
-			val tripplets = DB.internalGetItemList()
+			logger.warn("Reloading items.")
+
+			val triplets = DB.internalGetItemList()
+
 			items.clear()
-			tripplets.mapTo(items, {
+
+			triplets.mapTo(items, {
 				Item(it.first, it.second, it.third)
 			})
 

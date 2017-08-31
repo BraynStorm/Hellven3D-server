@@ -1,4 +1,4 @@
-package braynstorm.hellven3d.server
+package hellven3d.server
 
 import POJO
 import com.mchange.v1.io.InputStreamUtils
@@ -33,11 +33,12 @@ object DB : WithLogging {
 		val regex = """(?:--.*?\n)|(?:\n\n)|(?:^\n$)""".toRegex(setOf(RegexOption.MULTILINE))
 		InputStreamUtils.getContentsAsString(javaClass.classLoader.getResourceAsStream("sql")).split('\n').forEach {
 			val path = "sql/" + it
-			var sql = javaClass.classLoader.getResource(path).readText(Charsets.UTF_8)
-			sql = regex.replace(sql, "")
+			if (it.isNotBlank()) {
 
-			// Names will be (ex) GetWorldList
-			if (sql.isNotBlank()) {
+				var sql = javaClass.classLoader.getResource(path).readText(Charsets.UTF_8)
+				sql = regex.replace(sql, "")
+
+				// Names will be (ex) GetWorldList
 				val key = it.removeSuffix(".sql")
 				map += key to sql
 				logger.info("Loaded sql file $key")
@@ -85,15 +86,15 @@ object DB : WithLogging {
 				val list = mutableListOf<Triple<Int, Short, Short>>()
 
 				it.forEach {
-					list += Triple(it.getInt(1), it.getShort(2), it.getShort(3))
+					val t = Triple(it.getInt(1), it.getShort(2), it.getShort(3))
+					list += t
+					logger.debug("DB returned item $t")
 				}
 
 				if (list.isEmpty()) {
-					// TODO Log [WARN] Database has no items.
-
-					println("[Database] table `items` is empty.  :/")
+					logger.error("Database contains no items.")
 				} else {
-					println("[Database] Loaded ${list.size} items ")
+					logger.info("Loaded ${list.size} items.")
 				}
 
 				return list
@@ -118,6 +119,7 @@ object DB : WithLogging {
 						})
 					}
 
+					logger.trace("WorldList and character count for account $accountID gathered.")
 					return worldList
 				}
 			}
@@ -127,6 +129,8 @@ object DB : WithLogging {
 	}
 
 	fun setAccountLoggedIn(accountID: Int, value: Boolean) {
+		logger.trace("Account $accountID is already logged in")
+
 		connectionPool.connection.use {
 			val stmt = it.prepareStatement(statements["SetAccountLoggedIn"])
 			stmt.setBoolean(1, value)

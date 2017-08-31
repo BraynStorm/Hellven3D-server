@@ -1,4 +1,4 @@
-package braynstorm.hellven3d.server.launcher
+package hellven3d.server.launcher
 
 
 class WorldServerLauncher(serverDesciptions: Set<Triple<Int, Int, Int>>, loginServerPort: Int) {

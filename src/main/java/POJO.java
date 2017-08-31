@@ -3,7 +3,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import java.util.List;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
-public class POJO {
+public class POJO implements JsonPOJO {
 	
 	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
 	public static class LoginServerInfo extends POJO {
@@ -30,6 +30,7 @@ public class POJO {
 		}
 		
 	}
+	
 	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
 	public static class AuthFinished extends POJO {
 		
@@ -107,10 +108,9 @@ public class POJO {
 	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
 	public static class EquippedItem extends POJO {
 		public int id;
-		// TODO more shit to add.
+		// TODO THere is a lot more to be added.
 		// HashMap<String, Integer> data;
 	}
-	
 	
 	
 	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)

@@ -1,4 +1,4 @@
-package braynstorm.hellven3d.server
+package hellven3d.server
 
 import com.mchange.v1.io.InputStreamUtils
 import org.junit.jupiter.api.Test

@@ -1,11 +1,11 @@
 @file:Suppress("NOTHING_TO_INLINE")
 
-package braynstorm.hellven3d.server
+package hellven3d.server
 
 import InternalPOJO
 import POJO
-import braynstorm.hellven3d.server.net.JsonPOJODecoder
-import braynstorm.hellven3d.server.net.JsonPOJOEncoder
+import hellven3d.server.net.JsonPOJODecoder
+import hellven3d.server.net.JsonPOJOEncoder
 import io.netty.bootstrap.ServerBootstrap
 import io.netty.channel.*
 import io.netty.channel.nio.NioEventLoopGroup
@@ -31,8 +31,8 @@ class LoginServer(private val loginServerPort: Int, private val worldServerPort:
 		it.childHandler(object : ChannelInitializer<NioSocketChannel>() {
 			override fun initChannel(ch: NioSocketChannel) {
 				ch.pipeline().addLast(JsonObjectDecoder())
+				ch.pipeline().addLast(JsonPOJOEncoder())
 				ch.pipeline().addLast(JsonPOJODecoder(POJO::class.java))
-				ch.pipeline().addLast(JsonPOJOEncoder(POJO::class.java))
 				ch.pipeline().addLast(LoginServerConnectionHandler(this@LoginServer))
 			}
 
@@ -46,48 +46,58 @@ class LoginServer(private val loginServerPort: Int, private val worldServerPort:
 			//
 			override fun initChannel(ch: NioSocketChannel) {
 				ch.pipeline().addLast(JsonObjectDecoder())
+				ch.pipeline().addLast(JsonPOJOEncoder())
 				ch.pipeline().addLast(JsonPOJODecoder(InternalPOJO::class.java))
-				ch.pipeline().addLast(JsonPOJOEncoder(InternalPOJO::class.java))
 				ch.pipeline().addLast(WorldServerConnectionHandler(this@LoginServer))
 			}
 
 		})
 	}
 
-	private lateinit var loginServerFuture: ChannelFuture
-	private lateinit var worldListenerFuture: ChannelFuture
+	private var loginServerFuture: ChannelFuture? = null
+	private var worldListenerFuture: ChannelFuture? = null
 
 	internal val connections = Collections.synchronizedMap(hashMapOf<Channel, Account>())
 
 	fun start() {
-		loginServerFuture = clientServer.bind(loginServerPort).addListener {
+		clientServer.bind(loginServerPort).addListener {
 			if (!it.isSuccess) {
 				if (it.cause() != null) {
-					logger.error("LoginServer can't be opened.", it.cause())
+					logger.error("LoginServer can't be opened on port $loginServerPort", it.cause())
 				} else {
 					logger.error("LoginServer can't be opened on port $loginServerPort")
 				}
 			} else {
-				logger.info("LoginServer opened normally")
+				logger.info("LoginServer opened normally on port $loginServerPort")
+
+//				loginServerFuture = (clientServer.chann).closeFuture().addListener {
+//					connections.forEach {
+//						DB.setAccountLoggedIn(it.value.id, false)
+//					}
+//				}
 			}
 		}
 
 		worldListenerFuture = worldListener.bind(worldServerPort).addListener {
 			if (!it.isSuccess) {
 				if (it.cause() != null) {
-					logger.warn("WorldListener  can't be opened.", it.cause())
+					logger.error("WorldListener  can't be opened on port $worldServerPort.", it.cause())
 				} else {
-					logger.warn("WorldListener can't be opened.")
+					logger.error("WorldListener can't be opened on port $worldServerPort.")
 				}
 			} else {
 				logger.info("WorldListener opened normally on port $worldServerPort")
+//				worldListenerFuture = (it.get() as Channel).closeFuture().addListener {
+//
+//
+//				}
 			}
 		}
 	}
 
 	fun stop() {
-		loginServerFuture.cancel(true)
-		worldListenerFuture.cancel(true)
+		loginServerFuture?.cancel(true)
+		worldListenerFuture?.cancel(true)
 	}
 }
 
@@ -107,13 +117,13 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 	}
 
 	override fun channelRead0(ctx: ChannelHandlerContext, packet: POJO) {
-		logger.info("Read packet $packet")
+		logger.debug("Read packet $packet")
 
 		when (packet) {
 			is POJO.AuthStart -> {
 				if (packet.email == null || packet.password == null) {
-					// TODO LOG AND KICK AND PUNISH
-					logger.warn("Empty email/password")
+					logger.warn("Client sent malformed packet POJO\$AuthStart.")
+					// TODO PUNISH
 					ctx.close()
 					return
 				}
@@ -122,7 +132,7 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 				try {
 					accountAndStatusPair = DB.tryGetAccount(packet.email, packet.password)
 				} catch (e: SQLException) {
-					e.printStackTrace()
+					logger.warn("SQL Exception when trying to get account email=${packet.email}, password is not null.")
 				}
 				val account = accountAndStatusPair.first
 				val isLoggedIn = accountAndStatusPair.second
@@ -136,30 +146,33 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 				if (isLoggedIn) {
 					// TODO kick the other account too, but for now disallow access.
 					// Logged in and logging in again from another client. Kick both
+					logger.info("Account ${account.id} is already logged in")
 					sendAuthResult(ctx, POJO.AuthFinished.ACCOUNT_ALREADY_LOGGED_IN)
-					DB.setAccountLoggedIn(account.id, false)
+
+					if (loginServer.connections.containsValue(account))
+
+					// FIXME this line should be removed when the WorldServer is implementd. They will handle this.
+						DB.setAccountLoggedIn(account.id, false)
 					loginServer.connections.remove(ctx.channel())
 					// TODO notify world servers
-					logger.info("Already logged in")
 					return
 				}
 
 				loginServer.connections += ctx.channel() to account
-				logger.info(ctx.channel().toString())
+				logger.info("${account.id} logged in successfully from ${ctx.channel().remoteAddress()}.")
 				sendAuthResult(ctx, POJO.AuthFinished.SUCCESS)
 				DB.setAccountLoggedIn(account.id, true)
-				logger.info("All good")
-
 			}
 
 			is POJO.RequestWorldList -> {
-				logger.info(ctx.channel().toString())
 				if (loginServer.connections.containsKey(ctx.channel())) {
-					logger.info("Account is logged in")
+					logger.trace("Account is logged in")
 					val worldList = DB.getWorldListAndCharacterCount(loginServer.connections[ctx.channel()]?.id ?: return)
-					logger.info("World list acquired")
+					logger.trace("World list acquired")
 					ctx.channel().writeAndFlush(worldList)
-					logger.info("World list sent. $worldList")
+					logger.trace("World list sent.")
+				} else {
+					logger.info("WorldList not sent. Client isn't logged in.")
 				}
 			}
 		}
@@ -171,13 +184,12 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 		super.channelInactive(ctx)
 
 		val account = loginServer.connections[ctx.channel()] ?: return
-
+		logger.info("${account.id} logged out.")
 		DB.setAccountLoggedIn(account.id, false)
-
-
 	}
 
 	private inline fun sendAuthResult(ctx: ChannelHandlerContext, status: Int) {
+		logger.trace("Sending to ${ctx.channel().remoteAddress()}")
 		ctx.writeAndFlush(POJO.AuthFinished().also { it.status = status })
 	}
 }
