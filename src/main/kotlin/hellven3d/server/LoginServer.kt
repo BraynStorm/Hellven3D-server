@@ -3,6 +3,7 @@
 package hellven3d.server
 
 import InternalPOJO
+import JsonPOJO
 import POJO
 import hellven3d.server.net.JsonPOJODecoder
 import hellven3d.server.net.JsonPOJOEncoder
@@ -121,18 +122,25 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 		logger.debug("[$remoteAddress] Read packet $packet")
 
 		if (packet == null) {
-			logger.warn("[$remoteAddress] Recieved NULL packet")
-
+			logger.warn("[$remoteAddress] Received NULL packet")
 		}
 
 
 		when (packet) {
 			is POJO.AuthStart -> {
 				if (packet.email == null || packet.password == null) {
-					logger.warn("[$remoteAddress] Malformed POJO")
+					warnMalformedPOJO(remoteAddress, packet)
 					// TODO PUNISH
 					ctx.close()
 					return
+				}
+
+				if (synchronized(loginServer.connections) { loginServer.connections.containsKey(ctx.channel()) }) {
+					// The person is already logged in from the same connection and is trying to login again.
+					// Not to be confued with "Double Logging" - being logged in from a DIFFERENT connection.
+					logger.warn("[$remoteAddress] Channel attempted to re-authenticate.")
+					// TODO PUNISH
+					ctx.close()
 				}
 
 				val accountAndStatusPair: Pair<Account?, Boolean> = try {
@@ -150,42 +158,69 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 					return
 				}
 
-				val isLoggedIn = accountAndStatusPair.second
+				val isAlreadyLoggedIn = accountAndStatusPair.second
 
-				if (isLoggedIn) {
+				if (isAlreadyLoggedIn) {
 					// FIXME kick the other account too, but for now disallow access.
 					// Logged in and logging in again from another client. Kick both
 					logger.info("[$remoteAddress] $account is already logged in")
 					sendAuthResult(ctx, POJO.AuthFinished.ACCOUNT_ALREADY_LOGGED_IN)
 
-					if (loginServer.connections.containsValue(account)) {
-						// TODO kick the other person using the account. To do that, set the flag in the DB to false and notify all WorldServers.
+					val potentialOtherAccount = synchronized(loginServer.connections) {
+						loginServer.connections.filter {
+							it.value.id == account.id
+						}
+					}
+
+					if (potentialOtherAccount.isNotEmpty()) {
+						potentialOtherAccount.entries.first()
+					}
+
+					if (synchronized(loginServer.connections) { loginServer.connections.containsValue(account) }) {
+						// TODO kick the other person using the account.
+						// TODO To do that, set the flag in the DB to false and notify all WorldServers.
 						// TODO what account is in what worldserver. Maybe inthe db or in the login server?
 						// TODO what should we use the internal connection for except for tokens?
 					}
 
 					// FIXME this line should be removed when the WorldServer is implementd. They will handle this.
 					DB.setAccountLoggedIn(account.id, false)
-					loginServer.connections.remove(ctx.channel())
+
+					synchronized(loginServer.connections) {
+						loginServer.connections.remove(ctx.channel())
+					}
 					// TODO notify world servers
 					return
 				}
 
-				loginServer.connections += ctx.channel() to account
-				logger.info("$account logged in successfully from ${ctx.channel().remoteAddress()}.")
+				synchronized(loginServer.connections) {
+					loginServer.connections += ctx.channel() to account
+				}
+
+				logger.info("$account logged in successfully from $remoteAddress.")
 				sendAuthResult(ctx, POJO.AuthFinished.SUCCESS)
 				DB.setAccountLoggedIn(account.id, true)
 			}
 
 			is POJO.RequestWorldList -> {
-				if (loginServer.connections.containsKey(ctx.channel())) {
-					logger.trace("[${ctx.channel().remoteAddress()}] Account is logged in")
-					val worldList = DB.getWorldListAndCharacterCount(loginServer.connections[ctx.channel()]?.id ?: return)
-					logger.trace("[${ctx.channel().remoteAddress()}] World list acquired")
-					ctx.channel().writeAndFlush(worldList)
-					logger.trace("[${ctx.channel().remoteAddress()}] World list sent.")
+				val worldList = synchronized(loginServer.connections) {
+					if (loginServer.connections.containsKey(ctx.channel())) {
+						logger.trace("[$remoteAddress] Account is logged in")
+						DB.getWorldListAndCharacterCount(loginServer.connections[ctx.channel()]?.id ?: return)
+
+					} else {
+						null
+					}
+				}
+
+				if (worldList == null) {
+					warnUnauthenticated(remoteAddress, packet)
+					// TODO punish
+					ctx.close()
 				} else {
-					logger.info("[${ctx.channel().remoteAddress()}] Unauthenticated RequestWorldList")
+					logger.trace("[$remoteAddress] World list acquired")
+					ctx.channel().writeAndFlush(worldList)
+					logger.trace("[$remoteAddress] World list sent.")
 				}
 			}
 
@@ -193,23 +228,22 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 				// This packet should return a list of all
 				// characters for this account on the requested server
 
-				val account = loginServer.connections[ctx.channel()]
+				val account = synchronized(loginServer.connections) { loginServer.connections[ctx.channel()] }
 
 				if (account == null) {
-					logger.warn("[${ctx.channel().remoteAddress()}] Unauthenticated RequestCharacterPrototypeList")
+					warnUnauthenticated(remoteAddress, packet)
 					// TODO PUNISH and send Unauthorized packet.
 					ctx.close()
 					return
 				}
 
 				if (packet.world == null) {
-					logger.warn("[${ctx.channel().remoteAddress()}] Malformed POJO")
+					warnMalformedPOJO(remoteAddress, packet)
 					// TODO PUNISH
 					ctx.close()
 					return
 				}
 
-				// everything is fine
 				logger.trace("[$remoteAddress] Request is fine. Acquireing data.")
 				val outgoingPacket = DB.getCharacterPrototypeList(account.id, packet.world)
 				logger.trace("[$remoteAddress] Sending outgoingPacket")
@@ -220,12 +254,24 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 
 	}
 
+
+	private inline fun warnMalformedPOJO(remoteAddress: String, pojo: JsonPOJO) {
+		logger.warn("[$remoteAddress] Malformed POJO: $pojo")
+	}
+
+	private inline fun warnUnauthenticated(remoteAddress: String, pojo: JsonPOJO) {
+
+	}
+
+
 	override fun channelInactive(ctx: ChannelHandlerContext) {
 		super.channelInactive(ctx)
+		synchronized(loginServer.connections) {
+			val account = loginServer.connections.remove(ctx.channel()) ?: return
 
-		val account = loginServer.connections[ctx.channel()] ?: return
-		logger.info("$account logged out.")
-		DB.setAccountLoggedIn(account.id, false)
+			logger.info("$account logged out.")
+			DB.setAccountLoggedIn(account.id, false)
+		}
 	}
 
 	private inline fun sendAuthResult(ctx: ChannelHandlerContext, status: Int) {
