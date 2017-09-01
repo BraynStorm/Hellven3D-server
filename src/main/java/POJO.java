@@ -96,6 +96,10 @@ public class POJO implements JsonPOJO {
 		}
 	}
 	
+	/**
+	 * An instance of this class should be enough to display a the character
+	 * as if it were in-game. Will be updated regularly (probably).
+	 */
 	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
 	public static class CharacterPrototype extends POJO {
 		public String name;
@@ -108,8 +112,10 @@ public class POJO implements JsonPOJO {
 	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
 	public static class EquippedItem extends POJO {
 		public int id;
+		public int equipmentSlot;
+		public String itemData;
+		
 		// TODO THere is a lot more to be added.
-		// HashMap<String, Integer> data;
 	}
 	
 	
@@ -122,6 +128,11 @@ public class POJO implements JsonPOJO {
 			return getClass().getSimpleName() + "{token=" + token + "}";
 		}
 		
+	}
+	
+	@JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
+	public static class PlayerChoseCharacter extends POJO {
+		public String characterName;
 	}
 	
 }

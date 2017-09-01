@@ -140,143 +140,64 @@ object DB : WithLogging {
 		}
 	}
 
-	//	private object Statements {
-//		// TODO Move the ones required by the LoginServer in a separate class
-//
-//		// Internal
-//		val INTERNAL_ITEMLIST = dbConnection.prepareStatement("SELECT * FROM items")
-//
-//		val REGISTER_WORLD_SERVER = dbConnection.prepareCall(
-//				"INSERT INTO world_servers (connection_string, clients_max, clients_current, world_id) VALUES (?, ?, ?, ?)"
-//		)
-//
-//		val UNREGISTER_WORLD_SERVER = dbConnection.prepareCall(
-//				"DELETE FROM world_servers WHERE connection_string=?"
-//		)
-//
-//		val UPDATE_WORLD_SERVER = dbConnection.prepareCall(
-//				"UPDATE world_servers SET clients_current=? WHERE connection_string=?"
-//		)
-//
-//		val CREDENTIALS_REGISTER = dbConnection.prepareCall(
-//				"INSERT INTO accounts (email, password) VALUES (?, crypt(?, gen_salt('bf', 10)));"
-//		)
-//
-//		val CREDENTIALS_CHECK = dbConnection.prepareStatement(
-//				"SELECT id FROM accounts WHERE email=? AND password = crypt(?, password)"
-//		)
-//		val ACCOUNT_GET_CHARACTERS = dbConnection.prepareStatement(
-//				"SELECT id,name,race FROM characters WHERE account_id=?"
-//		)
-//
-//		val GET_CHARACTER_PROTOTYPE = dbConnection.prepareStatement(
-//				"SELECT item_id, equipment_slot FROM equipment WHERE character_id=?"
-//		)
-//
-//		val REQUEST_SERVER_STATUS = dbConnection.prepareStatement(
-//				"SELECT world_servers.clients_max, world_servers.clients_current FROM world_servers JOIN worlds ON world_servers.world_id = worlds.id WHERE worlds.name=?"
-//		)
-//		val REQUEST_SERVER_STATUS_ALL = dbConnection.prepareStatement(
-//				"SELECT worlds.name, world_servers.clients_max, world_servers.clients_current FROM world_servers JOIN worlds ON world_servers.world_id = worlds.id WHERE worlds.name=?"
-//		)
-//
-//	}
 
+	fun getCharacterPrototypeList(accountID: Int, world: String): POJO.CharacterPrototypeList {
+		logger.trace("Getting connection")
 
-//	fun regiserWorldServer(ip: String, port: Int, clientsMax: Int, clientsCurrent: Int, worldID: Int): Int {
-//		Statements.REGISTER_WORLD_SERVER.setString(1, connectionString(ip, port))
-//		Statements.REGISTER_WORLD_SERVER.setInt(2, clientsMax)
-//		Statements.REGISTER_WORLD_SERVER.setInt(3, clientsCurrent)
-//		Statements.REGISTER_WORLD_SERVER.setInt(4, worldID)
-//
-//		return Statements.REGISTER_WORLD_SERVER.executeUpdate()
-//	}
-//
-//	fun unregisterWorldServer(ip: String, port: Int): Int {
-//		Statements.UNREGISTER_WORLD_SERVER.setString(1, connectionString(ip, port))
-//		return Statements.UNREGISTER_WORLD_SERVER.executeUpdate()
-//	}
-//
-//	fun updateWorldServer(ip: String, port: Int, clientsCurrent: Int): Int {
-//		Statements.UPDATE_WORLD_SERVER.setInt(1, clientsCurrent)
-//		Statements.UPDATE_WORLD_SERVER.setString(2, connectionString(ip, port))
-//
-//		org.jcp
-//
-//		return Statements.UNREGISTER_WORLD_SERVER.executeUpdate()
-//	}
-//
-//
-//	/**
-//	 * @return pair in format: MaxCapacity, Current
-//	 */
-//	@Throws(UnknownWorld::class)
-//	fun requestServerStatus(worldName: String): Pair<Int, Int> {
-//		Statements.REQUEST_SERVER_STATUS.setString(1, worldName)
-//		val resultSet = Statements.REQUEST_SERVER_STATUS.executeQuery()
-//
-//		if (!resultSet.next()) {
-//			throw UnknownWorld(worldName)
-//		}
-//
-//		return resultSet.getInt(1) to resultSet.getInt(2)
-//	}
-//
-//	/**
-//	 * @return set with triples in format: Name, MaxCapacity, Current
-//	 */
-//	fun requestServerStatusAll(): Set<Triple<String, Int, Int>> {
-//
-//		val servers = mutableSetOf<Triple<String, Int, Int>>()
-//
-//		Statements.REQUEST_SERVER_STATUS_ALL.executeQuery().forEach {
-//			servers += Triple(it.getString(1), it.getInt(2), it.getInt(3))
-//		}
-//
-//		return servers
-//	}
-//
-//	/**
-//	 * @return List<Pair<Name, RaceID>>
-//	 */
-//	fun getCharacterList(accountID: Int): List<Pair<String, Int>> {
-//		Statements.ACCOUNT_GET_CHARACTERS.setInt(1, accountID)
-//
-//		val list = mutableListOf<Pair<String, Int>>()
-//
-//		Statements.ACCOUNT_GET_CHARACTERS.executeQuery().forEach {
-//			list += it.getString(2) to it.getInt(3)
-//		}
-//
-//		return list
-//	}
-//
-//	fun getCharacterPrototypeList(accountID: Int): List<POJO.CharacterPrototype> {
-//
-//		return getCharacterList(accountID).map {
-//
-//		}
-//
-//	}
-//
-//	fun checkCredentials(email: String, password: String): Account? {
-//		Statements.CREDENTIALS_CHECK.setString(1, email)
-//		Statements.CREDENTIALS_CHECK.setString(2, password)
-//
-//		val resultSet = Statements.CREDENTIALS_CHECK.executeQuery()
-//
-//		// If we have a matching row, we found an account.
-//		if (resultSet.next()) {
-//			val accID = resultSet.getInt(1)
-//
-//			return Account(accID)
-//
-//			// TODO make the authenticated connection
-//		}
-//	}
-//
-//
+		connectionPool.connection.use {
+			logger.trace("Preparing statement: GetCharacterPrototypeList")
 
+			var stmt = it.prepareStatement(statements["GetCharacterPrototypeList"])
+
+			stmt.setInt(1, accountID)
+			stmt.setString(2, world)
+
+			val nakedCharacters = hashMapOf<Int, POJO.CharacterPrototype>()
+
+			logger.trace("Executing statement")
+			stmt.executeQuery().use {
+				it.forEach {
+					val charID = it.getInt(1)
+					val name = it.getString(2)
+					val race = it.getInt(3)
+
+					val nakedCharacter = POJO.CharacterPrototype().also {
+						it.name = name
+						it.race = race
+						it.equipment = mutableListOf()
+					}
+
+					logger.trace("Got naked character $nakedCharacter")
+
+					nakedCharacters += charID to nakedCharacter
+				}
+			}
+
+			logger.trace("Preparing statement: GetCharacterPrototypeEquipment")
+			stmt = it.prepareStatement(statements["GetCharacterPrototypeEquipment"])
+
+			return POJO.CharacterPrototypeList().also {
+				it.characters = nakedCharacters.map { nakedChar ->
+					logger.trace("Equipping character $nakedChar")
+					stmt.setInt(1, nakedChar.key)
+
+					logger.trace("Executing statement")
+					stmt.executeQuery().use {
+						it.forEach {
+							nakedChar.value.equipment.add(POJO.EquippedItem().also { item ->
+								item.id = it.getInt(1)
+								item.equipmentSlot = it.getInt(2)
+								item.itemData = it.getString(3)
+							})
+						}
+					}
+
+					// its an equipped character now (well, except if they are not on Moonglade US :D).
+					nakedChar.value
+				}
+			}
+		}
+	}
 
 }
 

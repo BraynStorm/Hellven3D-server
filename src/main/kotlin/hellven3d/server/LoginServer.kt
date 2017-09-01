@@ -116,41 +116,52 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 		ctx.writeAndFlush(POJO.LoginServerInfo().also { it.millis = System.currentTimeMillis() })
 	}
 
-	override fun channelRead0(ctx: ChannelHandlerContext, packet: POJO) {
-		logger.debug("Read packet $packet")
+	override fun channelRead0(ctx: ChannelHandlerContext, packet: POJO?) {
+		val remoteAddress = ctx.channel().remoteAddress().toString()
+		logger.debug("[$remoteAddress] Read packet $packet")
+
+		if (packet == null) {
+			logger.warn("[$remoteAddress] Recieved NULL packet")
+
+		}
+
 
 		when (packet) {
 			is POJO.AuthStart -> {
 				if (packet.email == null || packet.password == null) {
-					logger.warn("Client sent malformed packet POJO\$AuthStart.")
+					logger.warn("[$remoteAddress] Malformed POJO")
 					// TODO PUNISH
 					ctx.close()
 					return
 				}
 
-				var accountAndStatusPair: Pair<Account?, Boolean> = null to false
-				try {
-					accountAndStatusPair = DB.tryGetAccount(packet.email, packet.password)
+				val accountAndStatusPair: Pair<Account?, Boolean> = try {
+					DB.tryGetAccount(packet.email, packet.password)
 				} catch (e: SQLException) {
-					logger.warn("SQL Exception when trying to get account email=${packet.email}, password is not null.")
+					logger.warn("[$remoteAddress] SQL Exception when trying to get account email=${packet.email}, password is not null.")
+					null to false
 				}
+
 				val account = accountAndStatusPair.first
-				val isLoggedIn = accountAndStatusPair.second
 
 				if (account == null) {
 					sendAuthResult(ctx, POJO.AuthFinished.NO_ACCOUNT)
-					logger.info("No such email/password combination")
+					logger.info("[$remoteAddress] No such email/password combination")
 					return
 				}
 
+				val isLoggedIn = accountAndStatusPair.second
+
 				if (isLoggedIn) {
-					// TODO kick the other account too, but for now disallow access.
+					// FIXME kick the other account too, but for now disallow access.
 					// Logged in and logging in again from another client. Kick both
-					logger.info("Account ${account.id} is already logged in")
+					logger.info("[$remoteAddress] $account is already logged in")
 					sendAuthResult(ctx, POJO.AuthFinished.ACCOUNT_ALREADY_LOGGED_IN)
 
 					if (loginServer.connections.containsValue(account)) {
-						//TODO
+						// TODO kick the other person using the account. To do that, set the flag in the DB to false and notify all WorldServers.
+						// TODO what account is in what worldserver. Maybe inthe db or in the login server?
+						// TODO what should we use the internal connection for except for tokens?
 					}
 
 					// FIXME this line should be removed when the WorldServer is implementd. They will handle this.
@@ -161,21 +172,48 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 				}
 
 				loginServer.connections += ctx.channel() to account
-				logger.info("${account.id} logged in successfully from ${ctx.channel().remoteAddress()}.")
+				logger.info("$account logged in successfully from ${ctx.channel().remoteAddress()}.")
 				sendAuthResult(ctx, POJO.AuthFinished.SUCCESS)
 				DB.setAccountLoggedIn(account.id, true)
 			}
 
 			is POJO.RequestWorldList -> {
 				if (loginServer.connections.containsKey(ctx.channel())) {
-					logger.trace("Account is logged in")
+					logger.trace("[${ctx.channel().remoteAddress()}] Account is logged in")
 					val worldList = DB.getWorldListAndCharacterCount(loginServer.connections[ctx.channel()]?.id ?: return)
-					logger.trace("World list acquired")
+					logger.trace("[${ctx.channel().remoteAddress()}] World list acquired")
 					ctx.channel().writeAndFlush(worldList)
-					logger.trace("World list sent.")
+					logger.trace("[${ctx.channel().remoteAddress()}] World list sent.")
 				} else {
-					logger.info("WorldList not sent. Client isn't logged in.")
+					logger.info("[${ctx.channel().remoteAddress()}] Unauthenticated RequestWorldList")
 				}
+			}
+
+			is POJO.RequestCharacterPrototypeList -> {
+				// This packet should return a list of all
+				// characters for this account on the requested server
+
+				val account = loginServer.connections[ctx.channel()]
+
+				if (account == null) {
+					logger.warn("[${ctx.channel().remoteAddress()}] Unauthenticated RequestCharacterPrototypeList")
+					// TODO PUNISH and send Unauthorized packet.
+					ctx.close()
+					return
+				}
+
+				if (packet.world == null) {
+					logger.warn("[${ctx.channel().remoteAddress()}] Malformed POJO")
+					// TODO PUNISH
+					ctx.close()
+					return
+				}
+
+				// everything is fine
+				logger.trace("[$remoteAddress] Request is fine. Acquireing data.")
+				val outgoingPacket = DB.getCharacterPrototypeList(account.id, packet.world)
+				logger.trace("[$remoteAddress] Sending outgoingPacket")
+				ctx.channel().writeAndFlush(outgoingPacket)
 			}
 		}
 
@@ -186,7 +224,7 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 		super.channelInactive(ctx)
 
 		val account = loginServer.connections[ctx.channel()] ?: return
-		logger.info("${account.id} logged out.")
+		logger.info("$account logged out.")
 		DB.setAccountLoggedIn(account.id, false)
 	}
 
