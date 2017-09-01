@@ -72,7 +72,8 @@ CREATE TABLE equipment
 		CONSTRAINT equipment_items_id_fk
 		REFERENCES items
 		ON UPDATE CASCADE ON DELETE CASCADE,
-	equipment_slot SMALLINT NOT NULL
+	equipment_slot SMALLINT NOT NULL,
+	item_data      TEXT
 );
 
 CREATE TABLE world_servers
@@ -123,10 +124,13 @@ ON UPDATE CASCADE ON DELETE CASCADE;
 
 CREATE TABLE log_loginserver
 (
-	message TEXT,
-	time    BIGINT DEFAULT date_part('epoch' :: TEXT, now()) NOT NULL,
-	id      SERIAL                                           NOT NULL
+	message   TEXT,
+	time      BIGINT DEFAULT date_part('epoch' :: TEXT, now()) NOT NULL,
+	id        SERIAL                                           NOT NULL
 		CONSTRAINT log_loginserver_pkey
-		PRIMARY KEY
+		PRIMARY KEY,
+	throwable TEXT,
+	logger    TEXT                                             NOT NULL,
+	level     VARCHAR(8)
 );
 
