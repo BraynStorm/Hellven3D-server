@@ -28,10 +28,10 @@ enum class EquipmentSlot(val value: Int) {
 	}
 }
 
-class Item(val id: Int, val type: Short, val subtype: Short?) {
+class Item(val id: Int, val type: Short, val subtype: Short) {
 	companion object {
 		private val logger by lazyLogger()
-		private val items = mutableListOf<Item>()
+		private val items = hashMapOf<Int, Item>()
 
 		fun reloadItems() {
 			logger.warn("Reloading items.")
@@ -40,12 +40,14 @@ class Item(val id: Int, val type: Short, val subtype: Short?) {
 
 			items.clear()
 
-			triplets.mapTo(items, {
-				Item(it.first, it.second, it.third)
-			})
+			triplets.forEach {
+				items += it.first to Item(it.first, it.second, it.third)
+			}
 
 		}
+
+		operator fun get(id: Int): Item? = items[id]
 	}
 }
 
-class ItemStack(val item: Item, val amount: Int = 1)
+class ItemStack(val item: Item, val amount: Int = 1, val itemData: Map<String, Int> = emptyMap())

@@ -1,39 +1,50 @@
 package hellven3d.server.net
 
-import JsonPOJO
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.owlike.genson.GensonBuilder
+import hellven3d.net.ExternalPOJO
+import hellven3d.net.POJO
 import hellven3d.server.lazyLogger
 import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.MessageToMessageDecoder
 import io.netty.handler.codec.MessageToMessageEncoder
 
-class JsonPOJOEncoder : MessageToMessageEncoder<JsonPOJO>() {
+internal val genson = GensonBuilder()
+		.useConstructorWithArguments(true)
+		.useClassMetadata(true)
+		.useClassMetadataWithStaticType(true)
+		.create()
+
+class JsonPOJOEncoder : MessageToMessageEncoder<ExternalPOJO>() {
 	companion object {
-		val objectMapper = ObjectMapper()
+		val logger by lazyLogger()
 	}
 
-	override fun encode(ctx: ChannelHandlerContext, msg: JsonPOJO, out: MutableList<Any>) {
+	override fun encode(ctx: ChannelHandlerContext, msg: ExternalPOJO, out: MutableList<Any>) {
 		// By specification, Charsets.UTF_8 is the charset
-		val bytes = objectMapper.writeValueAsBytes(msg)
-		val byteBuf = ctx.alloc().buffer(bytes.size).writeBytes(bytes)
-		out += byteBuf
+		try {
+			val bytes = genson.serializeBytes(msg)
+			logger.trace("Encoded ${genson.serialize(msg)}")
+			val byteBuf = ctx.alloc().buffer(bytes.size).writeBytes(bytes)
+			out += byteBuf
+		} catch (e: Exception) {
+			logger.error("Exception during encoding of packet.", e)
+		}
 	}
 }
 
-class JsonPOJODecoder<T : JsonPOJO>(private val pojoClass: Class<T>) : MessageToMessageDecoder<ByteBuf>() {
+class JsonPOJODecoder<T : POJO>(private val pojoClass: Class<T>) : MessageToMessageDecoder<ByteBuf>() {
 	companion object {
 		val logger by lazyLogger()
-		val objectMapper = ObjectMapper()
 	}
 
 	override fun decode(ctx: ChannelHandlerContext, msg: ByteBuf, out: MutableList<Any>) {
 		// By specification, Charsets.UTF_8 is the charset
 		val jsonString = msg.toString(Charsets.UTF_8)
 		try {
-			val pojo = objectMapper.readValue(jsonString, pojoClass)
+			val pojo = genson.deserialize(jsonString, pojoClass)
 			if (pojo != null) {
-				if (pojo is JsonPOJO) {
+				if (pojo is ExternalPOJO) {
 					out.add(pojo)
 				} else {
 					logger.warn("Received a non-pojo from client. Punish!")

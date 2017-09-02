@@ -1,8 +1,9 @@
 package hellven3d.server
 
-import POJO
 import com.mchange.v1.io.InputStreamUtils
 import com.mchange.v2.c3p0.ComboPooledDataSource
+import hellven3d.net.*
+import hellven3d.net.Item
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.ResultSet
@@ -24,8 +25,6 @@ object DB : WithLogging {
 
 		// Enable statement pooling.
 		it.maxStatementsPerConnection = 10
-
-
 	}
 
 	private val statements = hashMapOf<String, String>().also { map ->
@@ -82,7 +81,7 @@ object DB : WithLogging {
 	// INTERNALS
 	fun internalGetItemList(): List<Triple<Int, Short, Short>> {
 		connectionPool.connection.use {
-			it.createStatement().executeQuery("SELECT * FROM items").use {
+			it.prepareStatement(statements["GetItems"]).executeQuery().use {
 				val list = mutableListOf<Triple<Int, Short, Short>>()
 
 				it.forEach {
@@ -102,25 +101,27 @@ object DB : WithLogging {
 		}
 	}
 
-	fun getWorldListAndCharacterCount(accountID: Int): POJO.WorldList {
+	fun getWorldListAndCharacterCount(accountID: Int): WorldList {
 		connectionPool.connection.use {
 			it.prepareStatement(statements["GetWorldList"]).use { statement ->
 				statement.setInt(1, accountID)
 				statement.executeQuery().use { resultSet ->
-					val worldList = POJO.WorldList().also { it.worlds = mutableListOf<POJO.WorldList.WorldInfo>() }
+					val list = mutableListOf<WorldInfo>()
 
 					resultSet.forEach { row ->
-						worldList.worlds.add(POJO.WorldList.WorldInfo().also {
-							it.name = row.getString(1)
-							it.currentPlayers = row.getInt(2)
-							it.capacity = row.getInt(3)
-							it.numCharacters = row.getInt(4)
-							it.connectionString = row.getString(5)
-						})
+						list.add(WorldInfo(
+								row.getInt(1),
+								row.getString(2) ?: "",
+								row.getInt(3),
+								row.getInt(4),
+								row.getInt(5),
+								row.getString(6) ?: ""
+						))
+
 					}
 
 					logger.trace("WorldList and character count for account $accountID gathered.")
-					return worldList
+					return WorldList(list)
 				}
 			}
 
@@ -129,7 +130,7 @@ object DB : WithLogging {
 	}
 
 	fun setAccountLoggedIn(accountID: Int, value: Boolean) {
-		logger.trace("Account $accountID is already logged in")
+		logger.trace("Account $accountID setting login status to $value")
 
 		connectionPool.connection.use {
 			val stmt = it.prepareStatement(statements["SetAccountLoggedIn"])
@@ -141,8 +142,9 @@ object DB : WithLogging {
 	}
 
 
-	fun getCharacterPrototypeList(accountID: Int, world: String): POJO.CharacterPrototypeList {
+	fun getCharacterPrototypeList(accountID: Int, worldID: Int): CharacterList {
 		logger.trace("Getting connection")
+
 
 		connectionPool.connection.use {
 			logger.trace("Preparing statement: GetCharacterPrototypeList")
@@ -150,9 +152,9 @@ object DB : WithLogging {
 			var stmt = it.prepareStatement(statements["GetCharacterPrototypeList"])
 
 			stmt.setInt(1, accountID)
-			stmt.setString(2, world)
+			stmt.setInt(2, worldID)
 
-			val nakedCharacters = hashMapOf<Int, POJO.CharacterPrototype>()
+			val nakedCharacters = hashMapOf<Int, CharacterPrototype>()
 
 			logger.trace("Executing statement")
 			stmt.executeQuery().use {
@@ -161,11 +163,7 @@ object DB : WithLogging {
 					val name = it.getString(2)
 					val race = it.getInt(3)
 
-					val nakedCharacter = POJO.CharacterPrototype().also {
-						it.name = name
-						it.race = race
-						it.equipment = mutableListOf()
-					}
+					val nakedCharacter = CharacterPrototype(charID, name, race, hashMapOf())
 
 					logger.trace("Got naked character $nakedCharacter")
 
@@ -176,26 +174,35 @@ object DB : WithLogging {
 			logger.trace("Preparing statement: GetCharacterPrototypeEquipment")
 			stmt = it.prepareStatement(statements["GetCharacterPrototypeEquipment"])
 
-			return POJO.CharacterPrototypeList().also {
-				it.characters = nakedCharacters.map { nakedChar ->
-					logger.trace("Equipping character $nakedChar")
-					stmt.setInt(1, nakedChar.key)
+			return CharacterList(nakedCharacters.map { nakedChar ->
+				logger.trace("Equipping character $nakedChar")
+				stmt.setInt(1, nakedChar.key)
 
-					logger.trace("Executing statement")
-					stmt.executeQuery().use {
-						it.forEach {
-							nakedChar.value.equipment.add(POJO.EquippedItem().also { item ->
-								item.id = it.getInt(1)
-								item.equipmentSlot = it.getInt(2)
-								item.itemData = it.getString(3)
-							})
+				logger.trace("Executing statement")
+
+				stmt.executeQuery().use {
+					it.forEach {
+						// TODO implement itemData
+						val itemID = it.getInt(1)
+						val item = Item[itemID]
+
+						if (item == null) {
+							logger.error("Inconsistent data in database - " +
+									"player has equipped a nonexistent item: " +
+									"accountID=$accountID, " +
+									"worldID=$worldID, " +
+									"characterID=${nakedChar.key}, " +
+									"itemID=$itemID"
+							)
+						} else {
+							nakedChar.value.equipment += EquipmentSlot[it.getInt(2)].value to Item(item)
 						}
 					}
-
-					// its an equipped character now (well, except if they are not on Moonglade US :D).
-					nakedChar.value
 				}
-			}
+
+				// its an equipped character now (well, except if they are not on Moonglade US :D).
+				nakedChar.value
+			})
 		}
 	}
 
