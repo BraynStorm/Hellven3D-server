@@ -6,7 +6,7 @@ import io.netty.channel.SimpleChannelInboundHandler
 
 internal class WorldServerConnectionHandler(private val loginServer: LoginServer) : SimpleChannelInboundHandler<ExternalPOJO>() {
 	override fun channelRead0(ctx: ChannelHandlerContext, msg: ExternalPOJO) {
-
+		// asdf
 	}
 
 }
