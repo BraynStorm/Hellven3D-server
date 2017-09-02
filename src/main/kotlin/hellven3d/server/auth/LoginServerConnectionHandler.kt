@@ -1,112 +1,13 @@
-@file:Suppress("NOTHING_TO_INLINE")
+package hellven3d.server.auth
 
-package hellven3d.server
-
-import InternalPOJO
 import JsonPOJO
 import POJO
-import hellven3d.server.net.JsonPOJODecoder
-import hellven3d.server.net.JsonPOJOEncoder
-import io.netty.bootstrap.ServerBootstrap
-import io.netty.channel.*
-import io.netty.channel.nio.NioEventLoopGroup
-import io.netty.channel.socket.nio.NioServerSocketChannel
-import io.netty.channel.socket.nio.NioSocketChannel
-import io.netty.handler.codec.json.JsonObjectDecoder
+import hellven3d.server.Account
+import hellven3d.server.DB
+import hellven3d.server.lazyLogger
+import io.netty.channel.ChannelHandlerContext
+import io.netty.channel.SimpleChannelInboundHandler
 import java.sql.SQLException
-import java.util.*
-
-class LoginServer(private val loginServerPort: Int, private val worldServerPort: Int) {
-	private val logger by lazyLogger()
-
-	private val clientListenerAcceptGroup = NioEventLoopGroup()
-	private val clientListenerConnectionGroup = NioEventLoopGroup()
-
-
-	private val worldListenerAcceptGroup = NioEventLoopGroup()
-	private val worldListenerConnectionGroup = NioEventLoopGroup()
-
-	private val clientServer = ServerBootstrap().also {
-		it.group(clientListenerAcceptGroup, clientListenerConnectionGroup)
-		it.channel(NioServerSocketChannel::class.java)
-		it.childHandler(object : ChannelInitializer<NioSocketChannel>() {
-			override fun initChannel(ch: NioSocketChannel) {
-				ch.pipeline().addLast(JsonObjectDecoder())
-				ch.pipeline().addLast(JsonPOJOEncoder())
-				ch.pipeline().addLast(JsonPOJODecoder(POJO::class.java))
-				ch.pipeline().addLast(LoginServerConnectionHandler(this@LoginServer))
-			}
-
-		})
-	}
-
-	private val worldListener = ServerBootstrap().also {
-		it.group(worldListenerAcceptGroup, worldListenerConnectionGroup)
-		it.channel(NioServerSocketChannel::class.java)
-		it.childHandler(object : ChannelInitializer<NioSocketChannel>() {
-			//
-			override fun initChannel(ch: NioSocketChannel) {
-				ch.pipeline().addLast(JsonObjectDecoder())
-				ch.pipeline().addLast(JsonPOJOEncoder())
-				ch.pipeline().addLast(JsonPOJODecoder(InternalPOJO::class.java))
-				ch.pipeline().addLast(WorldServerConnectionHandler(this@LoginServer))
-			}
-
-		})
-	}
-
-	private var loginServerFuture: ChannelFuture? = null
-	private var worldListenerFuture: ChannelFuture? = null
-
-	internal val connections = Collections.synchronizedMap(hashMapOf<Channel, Account>())
-
-	fun start() {
-		clientServer.bind(loginServerPort).addListener {
-			if (!it.isSuccess) {
-				if (it.cause() != null) {
-					logger.error("LoginServer can't be opened on port $loginServerPort", it.cause())
-				} else {
-					logger.error("LoginServer can't be opened on port $loginServerPort")
-				}
-			} else {
-				logger.info("LoginServer opened normally on port $loginServerPort")
-
-//				loginServerFuture = (clientServer.chann).closeFuture().addListener {
-//					connections.forEach {
-//						DB.setAccountLoggedIn(it.value.id, false)
-//					}
-//				}
-			}
-		}
-
-		worldListenerFuture = worldListener.bind(worldServerPort).addListener {
-			if (!it.isSuccess) {
-				if (it.cause() != null) {
-					logger.error("WorldListener  can't be opened on port $worldServerPort.", it.cause())
-				} else {
-					logger.error("WorldListener can't be opened on port $worldServerPort.")
-				}
-			} else {
-				logger.info("WorldListener opened normally on port $worldServerPort")
-//				worldListenerFuture = (it.get() as Channel).closeFuture().addListener {
-//
-//
-//				}
-			}
-		}
-	}
-
-	fun stop() {
-		loginServerFuture?.cancel(true)
-		worldListenerFuture?.cancel(true)
-	}
-}
-
-class WorldServerConnectionHandler(private val loginServer: LoginServer) : SimpleChannelInboundHandler<InternalPOJO>() {
-	override fun channelRead0(ctx: ChannelHandlerContext, msg: InternalPOJO) {
-
-	}
-}
 
 class LoginServerConnectionHandler(private val loginServer: LoginServer) : SimpleChannelInboundHandler<POJO>() {
 	companion object {
@@ -179,11 +80,11 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 					if (synchronized(loginServer.connections) { loginServer.connections.containsValue(account) }) {
 						// TODO kick the other person using the account.
 						// TODO To do that, set the flag in the DB to false and notify all WorldServers.
-						// TODO what account is in what worldserver. Maybe inthe db or in the login server?
+						// TODO what account is in what WorldServer. Maybe in the db or in the login server?
 						// TODO what should we use the internal connection for except for tokens?
 					}
 
-					// FIXME this line should be removed when the WorldServer is implementd. They will handle this.
+					// FIXME this line should be removed when the WorldServer is implemented. They will handle this.
 					DB.setAccountLoggedIn(account.id, false)
 
 					synchronized(loginServer.connections) {

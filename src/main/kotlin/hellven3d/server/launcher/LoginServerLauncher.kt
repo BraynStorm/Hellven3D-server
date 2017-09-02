@@ -1,6 +1,6 @@
 package hellven3d.server.launcher
 
-import hellven3d.server.LoginServer
+import hellven3d.server.auth.LoginServer
 
 
 fun main(args: Array<String>) {
