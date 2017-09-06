@@ -9,3 +9,24 @@ data class RegisterWorldServer(
 		@JsonProperty("capacity") val capacity: Int,
 		@JsonProperty("current") val current: Int
 ) : InternalPOJO
+
+data class IsAccountPlaying(
+		@JsonProperty("accountID") val accountID: Int
+) : InternalPOJO
+
+data class ResponseAccountPlaying(
+		@JsonProperty("response") val response: Boolean
+) : InternalPOJO
+
+data class KickAccount(
+		@JsonProperty("accountID") val accountID: Int,
+		@JsonProperty("reason") val reason: Int
+) : InternalPOJO {
+	companion object {
+		val REASON_UNKNOWN = 0
+		val REASON_ACCOUNT_LOGGED_IN = 1
+	}
+}
+
+
+
