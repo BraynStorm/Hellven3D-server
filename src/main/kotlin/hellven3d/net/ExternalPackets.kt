@@ -32,7 +32,6 @@ data class WorldList(
 
 
 class RequestWorldList : ExternalPOJO {
-
 	override fun toString(): String {
 		return javaClass.simpleName + "()"
 	}
@@ -55,13 +54,5 @@ data class CharacterPrototype(
 		val id: Int,
 		val name: String,
 		val race: Int,
-		val equipment: MutableMap<Int, Item>
+		val equipment: MutableMap<Int, Int> // EquipmentSlot to ItemID
 )
-
-data class Item(
-		val id: Int,
-		val type: Short,
-		val subtype: Short
-) {
-	constructor(item: hellven3d.server.Item) : this(item.id, item.type, item.subtype)
-}

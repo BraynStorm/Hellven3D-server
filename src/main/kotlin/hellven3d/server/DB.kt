@@ -2,8 +2,10 @@ package hellven3d.server
 
 import com.mchange.v1.io.InputStreamUtils
 import com.mchange.v2.c3p0.ComboPooledDataSource
-import hellven3d.net.*
-import hellven3d.net.Item
+import hellven3d.net.CharacterList
+import hellven3d.net.CharacterPrototype
+import hellven3d.net.WorldInfo
+import hellven3d.net.WorldList
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.ResultSet
@@ -195,7 +197,7 @@ object DB : WithLogging {
 									"itemID=$itemID"
 							)
 						} else {
-							nakedChar.value.equipment += EquipmentSlot[it.getInt(2)].value to Item(item)
+							nakedChar.value.equipment += EquipmentSlot[it.getInt(2)].value to item.id
 						}
 					}
 				}
