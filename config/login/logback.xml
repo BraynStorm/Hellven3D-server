@@ -1,0 +1,40 @@
+<configuration scan="true" scanPeriod="30 seconds">
+	<logger name="io.netty" level="INFO"/>
+	<logger name="com.mchange" level="INFO"/>
+
+
+	<appender name="Console" class="ch.qos.logback.core.ConsoleAppender">
+		<!-- encoders are assigned the type
+			 ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->
+		<encoder>
+			<pattern>[%d{HH:mm:ss.SSS}][%-5level][%thread][%logger{36}] - %msg%n</pattern>
+		</encoder>
+	</appender>
+
+	<appender name="webFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<File>/var/www/html/logs/login_server</File>
+
+		<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+			<FileNamePattern>login_server_%d{yyyy-MM-dd}.log</FileNamePattern>
+		</rollingPolicy>
+
+		<encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+			<layout class="ch.qos.logback.contrib.json.classic.JsonLayout">
+				<jsonFormatter class="ch.qos.logback.contrib.jackson.JacksonJsonFormatter"/>
+				<!--<timestampFormat-->
+
+				<appendLineSeparator>true</appendLineSeparator>
+
+			</layout>
+			<!--<pattern>{"time":"[%d{HH:mm:ss.SSS}]","level":"%-5level","thread":"%thread","logger":"%logger{36}","message":"%msg"}%n</pattern>-->
+		</encoder>
+	</appender>
+
+	<root level="INFO">
+		<appender-ref ref="Console"/>
+	</root>
+
+	<root level="TRACE">
+		<appender-ref ref="webFile"/>
+	</root>
+</configuration>

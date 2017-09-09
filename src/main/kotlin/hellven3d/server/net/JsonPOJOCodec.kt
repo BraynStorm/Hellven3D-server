@@ -5,6 +5,7 @@ import hellven3d.net.ExternalPOJO
 import hellven3d.net.POJO
 import hellven3d.server.lazyLogger
 import io.netty.buffer.ByteBuf
+import io.netty.buffer.ByteBufUtil
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.MessageToMessageDecoder
 import io.netty.handler.codec.MessageToMessageEncoder
@@ -40,6 +41,7 @@ class JsonPOJODecoder<T : POJO>(private val pojoClass: Class<T>) : MessageToMess
 
 	override fun decode(ctx: ChannelHandlerContext, msg: ByteBuf, out: MutableList<Any>) {
 		// By specification, Charsets.UTF_8 is the charset
+		val remoteAddress = ctx.channel().remoteAddress().toString()
 		val jsonString = msg.toString(Charsets.UTF_8)
 		try {
 			val pojo = genson.deserialize(jsonString, pojoClass)
@@ -47,14 +49,16 @@ class JsonPOJODecoder<T : POJO>(private val pojoClass: Class<T>) : MessageToMess
 				if (pojo is ExternalPOJO) {
 					out.add(pojo)
 				} else {
-					logger.warn("Received a non-pojo from client. Punish!")
+					val packetData = ByteBufUtil.prettyHexDump(msg)
+					logger.warn("[$remoteAddress] Received a non-pojo from client. Punish!\n$packetData\n")
 					ctx.close()
 					// TODO PUNISH
 				}
 			}
 
 		} catch (e: Exception) {
-			logger.warn("Exception when parsing json from client. ", e)
+			val packetData = ByteBufUtil.prettyHexDump(msg)
+			logger.warn("[$remoteAddress] Exception when parsing json from client.\n$packetData\n ", e)
 			ctx.close()
 			//TODO PUNISH
 		}

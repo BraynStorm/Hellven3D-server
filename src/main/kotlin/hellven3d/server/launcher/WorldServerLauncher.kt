@@ -1,23 +1,11 @@
 package hellven3d.server.launcher
 
+import hellven3d.server.world.WorldServer
 
-class WorldServerLauncher(serverDesciptions: Set<Triple<Int, Int, Int>>, loginServerPort: Int) {
-
-
-//	private val servers = hashMapOf<Triple<Int, Int, Int>, WorldServer>()
-//
-//	init {
-//
-//
-//
-//		serverDesciptions.forEach {
-//			val port = it.first
-//			val worldID = it.second
-//			val capacity = it.third
-//
-//			servers += it to WorldServer("", port, loginServerPort)
-//
-//
-//		}
-//	}
+fun main(args: Array<String>) {
+	WorldServer(
+			clientPort = 6502,
+			loginServerAddress = "127.0.0.1",
+			loginServerPort = 6499
+	).start()
 }

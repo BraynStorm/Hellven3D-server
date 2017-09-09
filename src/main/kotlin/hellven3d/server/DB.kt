@@ -208,6 +208,16 @@ object DB : WithLogging {
 		}
 	}
 
+	fun isWorldServerValid(ip: String, port: Int): Boolean {
+		connectionPool.connection.use {
+			it.prepareStatement("").use {
+				it.executeQuery().use {
+					return it.next()
+				}
+			}
+		}
+	}
+
 }
 
 

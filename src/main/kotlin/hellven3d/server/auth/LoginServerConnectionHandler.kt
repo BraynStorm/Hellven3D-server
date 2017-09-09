@@ -13,6 +13,7 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 		val logger by lazyLogger()
 	}
 
+
 	override fun channelActive(ctx: ChannelHandlerContext) {
 		logger.info("[${ctx.channel().remoteAddress()}] Connection accepted.")
 		ctx.writeAndFlush(LoginServerStatus(System.currentTimeMillis()))
@@ -81,18 +82,15 @@ class LoginServerConnectionHandler(private val loginServer: LoginServer) : Simpl
 
 	}
 
-
-	private inline fun warnMalformedPOJO(remoteAddress: String, pojo: ExternalPOJO) {
-		logger.warn("[$remoteAddress] Malformed POJO: $pojo")
-	}
-
-	private inline fun warnNotAuthenticated(remoteAddress: String, pojo: ExternalPOJO) {
+	private fun warnNotAuthenticated(remoteAddress: String, pojo: ExternalPOJO?) {
 		logger.warn("[$remoteAddress] Not authenticated: $pojo")
 	}
 
 
 	override fun channelInactive(ctx: ChannelHandlerContext) {
 		super.channelInactive(ctx)
+		val remoteAddress = ctx.channel().remoteAddress().toString()
+		logger.trace("[$remoteAddress] became inactive, disconnecting,")
 		synchronized(loginServer.connections) {
 			val account = loginServer.connections.remove(ctx.channel()) ?: return
 

@@ -42,10 +42,6 @@ dependencies {
 	// Future use
 	compile "com.badlogicgames.gdx:gdx:1.9.6"
 
-//	compile "com.fasterxml.jackson.core:jackson-core:2.9.0.pr4"
-//	compile "com.fasterxml.jackson.core:jackson-annotations:2.9.0.pr4"
-//	compile "com.fasterxml.jackson.core:jackson-databind:2.9.0.pr4"
-
 	compile "com.owlike:genson:1.5-SNAPSHOT"
 
 	compile "com.mchange:c3p0:0.9.5.2"
@@ -55,7 +51,13 @@ dependencies {
 	compile "io.netty:netty-all:4.1.14.Final"
 
 	compile "org.slf4j:slf4j-api:1.7.25"
+	compile "ch.qos.logback:logback-core:1.2.3"
 	compile "ch.qos.logback:logback-classic:1.2.3"
+	compile "ch.qos.logback.contrib:logback-json-core:0.1.5"
+	compile "ch.qos.logback.contrib:logback-json-classic:0.1.5"
+	compile "ch.qos.logback.contrib:logback-jackson:0.1.5"
+	compile "com.fasterxml.jackson.core:jackson-core:2.9.0"
+	compile "com.fasterxml.jackson.core:jackson-databind:2.9.0"
 
 	testCompile "org.junit.jupiter:junit-jupiter-engine:5.0.0-RC2"
 }
